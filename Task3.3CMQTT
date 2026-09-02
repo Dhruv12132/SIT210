@@ -1,0 +1,173 @@
+#include <WiFiNINA.h>
+#include <PubSubClient.h>
+
+char ssid[] = "Oneplus";
+char pass[] = "123456789";
+
+const char* mqttServer = "broker.emqx.io";
+const int mqttPort = 1883;
+
+const char* waveTopic = "ES/Wave";
+const char* patTopic = "ES/Pat";
+
+const int trigPin = 11;
+const int echoPin = 10;
+const int led1 = 5;
+const int led2 = 6;
+
+WiFiClient wifiClient;
+PubSubClient mqttClient(wifiClient);
+
+long duration;
+float distance;
+
+unsigned long lastAction = 0;
+unsigned long lastReading = 0;
+
+const unsigned long cooldown = 5000;
+const unsigned long readingDelay = 1000;
+
+float getDistance() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+
+  digitalWrite(trigPin, LOW);
+
+  duration = pulseIn(echoPin, HIGH, 30000);
+
+  if (duration == 0) {
+    return 999;
+  }
+
+  return duration * 0.0343 / 2;
+}
+
+void setLights(bool state) {
+  digitalWrite(led1, state ? HIGH : LOW);
+  digitalWrite(led2, state ? HIGH : LOW);
+}
+
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message received on ");
+  Serial.print(topic);
+  Serial.print(": ");
+
+  for (unsigned int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+
+  Serial.println();
+
+  if (strcmp(topic, waveTopic) == 0) {
+    setLights(true);
+    Serial.println("Both LEDs ON");
+  }
+
+  if (strcmp(topic, patTopic) == 0) {
+    setLights(false);
+    Serial.println("Both LEDs OFF");
+  }
+}
+
+void connectWiFi() {
+  Serial.print("Connecting to Wi-Fi");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    WiFi.begin(ssid, pass);
+    delay(5000);
+    Serial.print(".");
+  }
+
+  Serial.println();
+  Serial.println("Wi-Fi connected");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void connectMQTT() {
+  while (!mqttClient.connected()) {
+    Serial.print("Connecting to MQTT...");
+
+    String clientId = "Nano33IoT-";
+    clientId += String(random(0xffff), HEX);
+
+    if (mqttClient.connect(clientId.c_str())) {
+      Serial.println("connected");
+
+      mqttClient.subscribe(waveTopic);
+      mqttClient.subscribe(patTopic);
+
+      Serial.println("Subscribed to ES/Wave");
+      Serial.println("Subscribed to ES/Pat");
+    } else {
+      Serial.print("failed, state=");
+      Serial.println(mqttClient.state());
+      delay(5000);
+    }
+  }
+}
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+
+  pinMode(led1, OUTPUT);
+  pinMode(led2, OUTPUT);
+
+  setLights(false);
+
+  randomSeed(analogRead(A0));
+
+  connectWiFi();
+
+  mqttClient.setServer(mqttServer, mqttPort);
+  mqttClient.setCallback(mqttCallback);
+
+  connectMQTT();
+}
+
+void loop() {
+  if (WiFi.status() != WL_CONNECTED) {
+    connectWiFi();
+  }
+
+  if (!mqttClient.connected()) {
+    connectMQTT();
+  }
+
+  mqttClient.loop();
+
+  if (millis() - lastReading >= readingDelay) {
+    distance = getDistance();
+
+    Serial.print("Distance: ");
+    Serial.print(distance);
+    Serial.println(" cm");
+
+    lastReading = millis();
+
+    if (millis() - lastAction >= cooldown) {
+
+      if (distance >= 15 && distance <= 40) {
+        Serial.println("Wave detected");
+
+        mqttClient.publish(waveTopic, "Dhruv Goyal");
+
+        lastAction = millis();
+      }
+
+      else if (distance < 10) {
+        Serial.println("Pat detected");
+
+        mqttClient.publish(patTopic, "Dhruv Goyal");
+
+        lastAction = millis();
+      }
+    }
+  }
+}
