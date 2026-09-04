@@ -1,0 +1,107 @@
+#include <Wire.h>
+#include <BH1750.h>
+
+BH1750 lightSensor;
+
+// Pins used in the circuit
+const int pirPin = 2;
+const int switchPin = 3;
+
+const int led1 = 6;
+const int led2 = 7;
+
+// changes inside the functions
+volatile bool motionDetected = false;
+volatile bool switchPressed = false;
+
+bool lightsOn = false;
+
+// function for the PIR sensor
+void motionInterrupt() {
+  motionDetected = true;
+}
+
+// function for the slider switch
+void switchInterrupt() {
+  switchPressed = true;
+}
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(pirPin, INPUT);
+  pinMode(switchPin, INPUT_PULLUP);
+
+  pinMode(led1, OUTPUT);
+  pinMode(led2, OUTPUT);
+
+  digitalWrite(led1, LOW);
+  digitalWrite(led2, LOW);
+
+  // Start the light sensor
+  Wire.begin();
+
+  if (lightSensor.begin()) {
+    Serial.println("BH1750 sensor started");
+  } else {
+    Serial.println("BH1750 sensor not found");
+  }
+
+  // Set up the two interrupts
+  attachInterrupt(digitalPinToInterrupt(pirPin), motionInterrupt, RISING);
+  attachInterrupt(digitalPinToInterrupt(switchPin), switchInterrupt, FALLING);
+
+  Serial.println("system started");
+}
+
+void loop() {
+
+  // Read the light level
+  float lightLevel = lightSensor.readLightLevel();
+
+  Serial.print("Light level: ");
+  Serial.print(lightLevel);
+  Serial.println(" lux");
+
+  // Check if the PIR interrupt happened
+  if (motionDetected) {
+    motionDetected = false;
+
+    // Only turn on the lights automatically when it is dark
+    if (lightLevel < 50) {
+      lightsOn = true;
+
+      digitalWrite(led1, HIGH);
+      digitalWrite(led2, HIGH);
+
+      Serial.println("Motion detected - Lights ON");
+    } else {
+      Serial.println("Motion detected - It is already bright");
+    }
+  }
+
+  // Check if the slider switch interrupt happened
+  if (switchPressed) {
+    switchPressed = false;
+
+    // Toggle both LEDs using the switch
+    lightsOn = !lightsOn;
+
+    if (lightsOn) {
+      digitalWrite(led1, HIGH);
+      digitalWrite(led2, HIGH);
+
+      Serial.println("Slider switch - Lights ON");
+    } else {
+      digitalWrite(led1, LOW);
+      digitalWrite(led2, LOW);
+
+      Serial.println("Slider switch - Lights OFF");
+    }
+
+    // Small delay
+    delay(200);
+  }
+
+  delay(500);
+}
