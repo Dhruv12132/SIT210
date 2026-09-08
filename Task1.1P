@@ -2,6 +2,34 @@ int button = 4;
 int porchLight = 6;
 int hallwayLight = 7;
 
+void turnLightsOn()
+{
+digitalWrite(porchLight, HIGH);
+digitalWrite(hallwayLight, HIGH);
+}
+
+void turnPorchLightOff()
+{
+digitalWrite(porchLight, LOW);
+}
+
+void turnHallwayLightOff()
+{
+digitalWrite(hallwayLight, LOW);
+}
+
+
+void lightSequence()
+{
+  turnLightsOn();
+  delay(30000);
+
+  turnPorchLightOff();
+
+  delay(30000);
+  turnHallwayLightOff();
+}
+
 void setup()
 {
   Serial.begin(9600);
@@ -9,6 +37,9 @@ void setup()
   pinMode(button, INPUT_PULLUP);
   pinMode(porchLight, OUTPUT);
   pinMode(hallwayLight, OUTPUT);
+
+  digitalWrite(porchLight, LOW);
+  digitalWrite(hallwayLight, LOW);
 }
 
 void loop()
@@ -17,16 +48,7 @@ void loop()
   {
     Serial.println("Button pressed");
 
-    digitalWrite(porchLight, HIGH);
-    digitalWrite(hallwayLight, HIGH);
-
-    delay(3000);
-
-    digitalWrite(porchLight, LOW);
-
-    delay(3000);
-
-    digitalWrite(hallwayLight, LOW);
+    lightSequence();
 
     Serial.println("Lights turned off");
   }
